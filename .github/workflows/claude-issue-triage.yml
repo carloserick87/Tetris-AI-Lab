@@ -1,0 +1,83 @@
+name: Claude Issue Triage
+
+on:
+  issues:
+    types: [opened, edited]
+
+concurrency:
+  group: claude-issue-triage-${{ github.event.issue.number }}
+  cancel-in-progress: true
+
+jobs:
+  triage:
+    if: |
+      github.event.issue.state == 'open' &&
+      github.event.issue.user.type != 'Bot' &&
+      !endsWith(github.actor, '[bot]')
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    permissions:
+      contents: read
+      issues: write
+      id-token: write
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 1
+
+      - name: Triage issue with Claude
+        uses: anthropics/claude-code-action@v1
+        with:
+          claude_code_oauth_token: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
+          claude_args: |
+            --allowedTools "Read,Glob,Grep,Write,Bash(gh label list:*),Bash(gh issue view:*),Bash(gh issue edit:*),Bash(gh issue comment:*),Bash(gh api:*)"
+          prompt: |
+            Eres el encargado de hacer triage de issues del repositorio ${{ github.repository }}
+            (Tetris en JavaScript vanilla sobre HTML5 Canvas; lee CLAUDE.md para conocer la arquitectura).
+
+            Issue: #${{ github.event.issue.number }}
+            Evento: ${{ github.event.action }}
+
+            Sigue estos pasos:
+
+            1. Lee el issue completo:
+               gh issue view ${{ github.event.issue.number }} --json title,body,labels,comments
+
+            2. Obtén los labels disponibles con `gh label list`. Usa SOLO labels que ya existen; NUNCA crees labels nuevos.
+               Elige:
+               - Exactamente 1 label de tipo: bug, enhancement, documentation o question
+                 (y opcionalmente duplicate, invalid, accessibility, good first issue, help wanted si claramente aplican).
+               - 1 o más labels de área:
+                 area:gameplay (movimiento, rotación, colisión, gravedad, spawn),
+                 area:rendering (canvas, draw, ghost, preview de siguiente pieza),
+                 area:ui (HTML/CSS, overlay, panel lateral, textos),
+                 area:scoring (puntuación, líneas, nivel, velocidad),
+                 area:ci (workflows de GitHub, tooling).
+               - Exactamente 1 label de prioridad: priority:high, priority:medium o priority:low.
+               Aplícalos con `gh issue edit ${{ github.event.issue.number }} --add-label "..."`.
+               Si el evento es "edited", quita con `--remove-label` los labels de tipo/área/prioridad que ya no apliquen.
+               No toques otros labels que haya puesto un humano (p. ej. wontfix).
+
+            3. Analiza el código del repositorio (index.html, style.css, game.js) para entender qué partes están
+               involucradas. Redacta un diagnóstico general EN ESPAÑOL, en Markdown, con estas secciones:
+               - **Resumen**: qué se pide o qué falla, en 2-3 líneas.
+               - **Clasificación**: tipo, área(s) y prioridad, con una breve justificación.
+               - **Análisis técnico**: archivos y funciones afectadas (p. ej. `tryRotate`, `collide`, `clearLines`,
+                 `draw`), citando `archivo:línea` cuando sea posible.
+               - **Causa probable / Diseño propuesto**: para bugs, la causa raíz más probable; para mejoras, el enfoque.
+               - **Pasos de implementación sugeridos**: lista numerada y concreta.
+               - **Criterios de aceptación**: cómo verificar que está resuelto.
+               - **Riesgos y preguntas abiertas**: información que falta o efectos secundarios.
+               No escribas la implementación final ni abras PRs; solo diagnostica.
+
+            4. Publica el diagnóstico como UN ÚNICO comentario persistente:
+               - La primera línea del cuerpo debe ser exactamente: <!-- claude-issue-triage -->
+               - Escribe el cuerpo en el archivo triage-comment.md (raíz del workspace) con la herramienta Write.
+               - Busca si ya existe un comentario con ese marcador:
+                 gh api repos/${{ github.repository }}/issues/${{ github.event.issue.number }}/comments --paginate --jq '.[] | select(.body | startswith("<!-- claude-issue-triage -->")) | .id'
+               - Si existe, actualízalo (usa el primer id):
+                 gh api -X PATCH repos/${{ github.repository }}/issues/comments/<ID> -F body=@triage-comment.md
+               - Si no existe, créalo:
+                 gh issue comment ${{ github.event.issue.number }} --body-file triage-comment.md
