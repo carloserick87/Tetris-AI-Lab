@@ -71,6 +71,10 @@ jobs:
                - **Criterios de aceptación**: cómo verificar que está resuelto.
                - **Riesgos y preguntas abiertas**: información que falta o efectos secundarios.
                No escribas la implementación final ni abras PRs; solo diagnostica.
+               Formato: todo lo que comentes debe ser GitHub Flavored Markdown válido que GitHub renderice
+               correctamente: encabezados `##`, listas con `-` o `1.`, código inline con backticks, bloques de
+               código con ``` y lenguaje (p. ej. ```js), tablas GFM si ayudan, y una línea en blanco entre bloques.
+               No envuelvas el comentario completo en un bloque de código ni uses HTML salvo el marcador del paso 4.
 
             4. Publica el diagnóstico como UN ÚNICO comentario persistente:
                - La primera línea del cuerpo debe ser exactamente: <!-- claude-issue-triage -->
