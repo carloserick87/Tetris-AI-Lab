@@ -2,7 +2,9 @@
 <html lang="es">
 <head>
   <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
+  <meta name="mobile-web-app-capable" content="yes" />
+  <meta name="apple-mobile-web-app-capable" content="yes" />
   <title>Tetris</title>
   <link rel="stylesheet" href="style.css" />
 </head>
@@ -47,6 +49,8 @@
           </select>
         </div>
 
+        <button type="button" class="menu-btn touch-only" id="pause-btn" aria-label="Pausa">⏸</button>
+
         <div class="panel-section controls">
           <span class="label">CONTROLS</span>
           <ul>
@@ -58,6 +62,14 @@
           </ul>
         </div>
       </aside>
+    </div>
+
+    <div class="touch-controls touch-only" id="touch-controls">
+      <button type="button" class="touch-btn" data-action="left" tabindex="-1" aria-label="Mover a la izquierda">◀</button>
+      <button type="button" class="touch-btn" data-action="right" tabindex="-1" aria-label="Mover a la derecha">▶</button>
+      <button type="button" class="touch-btn" data-action="soft" tabindex="-1" aria-label="Bajar">▼</button>
+      <button type="button" class="touch-btn" data-action="hard" tabindex="-1" aria-label="Caída">⤓</button>
+      <button type="button" class="touch-btn" data-action="rotate" tabindex="-1" aria-label="Rotar">⟳</button>
     </div>
 
     <div id="pause-menu" class="overlay hidden" role="dialog" aria-modal="true" aria-labelledby="pause-title">
@@ -86,6 +98,10 @@
             <li><span><kbd>↓</kbd></span> bajar</li>
             <li><span><kbd>Space</kbd></span> caída</li>
             <li><span><kbd>P</kbd><kbd>Esc</kbd></span> pausa</li>
+            <li class="touch-only"><span>toque</span> rotar</li>
+            <li class="touch-only"><span>deslizar ←→</span> mover</li>
+            <li class="touch-only"><span>deslizar ↓</span> bajar</li>
+            <li class="touch-only"><span>swipe rápido ↓</span> caída</li>
           </ul>
           <button type="button" class="menu-btn" id="hide-controls-btn">Volver</button>
         </div>

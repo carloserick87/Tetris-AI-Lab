@@ -104,6 +104,19 @@ Después abre `http://localhost:8000` en el navegador.
 | `Espacio` | Hard drop (caída instantánea)     |
 | `P` / `Esc` | Pausar / reanudar (menú: `↑`/`↓` navegar, `←`/`→` nivel inicial) |
 
+### Móvil / táctil
+
+En pantallas táctiles el tablero se ajusta al tamaño de la pantalla y aparece una barra de botones bajo el tablero (`◀` `▶` `▼` `⤓` `⟳`; mantener pulsado repite mover/bajar) y un botón `⏸` en el panel. También se puede jugar con gestos sobre el tablero:
+
+| Gesto                  | Acción     |
+| ---------------------- | ---------- |
+| Toque                  | Rotar      |
+| Deslizar ← / →         | Mover      |
+| Deslizar ↓             | Soft drop  |
+| Deslizar ↓ rápido      | Hard drop  |
+
+El juego se pausa solo al cambiar de app o bloquear el teléfono.
+
 ---
 
 ## Cómo funciona

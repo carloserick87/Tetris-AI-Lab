@@ -61,7 +61,18 @@ const LINE_SCORES = [0, 100, 300, 500, 800];
 
 const START_LEVEL_KEY = 'tetris-start-level';
 const MAX_START_LEVEL = 10;
-const GAME_KEYS = ['ArrowLeft', 'ArrowRight', 'ArrowDown', 'ArrowUp', 'KeyX', 'Space'];
+const KEY_ACTIONS = {
+  ArrowLeft: 'left', ArrowRight: 'right', ArrowDown: 'soft', ArrowUp: 'rotate', KeyX: 'rotate', Space: 'hard',
+};
+// Touch: held buttons repeat after a delay; board gestures (tap/drag/swipe) are measured in cells.
+const REPEATABLE_ACTIONS = new Set(['left', 'right', 'soft']);
+const REPEAT_DELAY = 170;
+const REPEAT_RATE = 50;
+const TAP_MAX_MS = 250;
+const SWIPE_DROP_SPEED = 1; // px/ms of downward flick that triggers a hard drop
+const AXIS_LOCK = 0.5;      // cells moved before a drag commits to horizontal or vertical
+// Canvas bitmaps are scaled by this; all drawing stays in logical (CSS) pixels via setTransform.
+const DPR = Math.min(window.devicePixelRatio || 1, 3);
 const SKIN_STORAGE_KEY = 'tetris-skin';
 const SKINS = {
   retro: {
@@ -135,6 +146,16 @@ const newRecordEl = document.getElementById('new-record');
 const recordForm = document.getElementById('record-form');
 const recordNameInput = document.getElementById('record-name');
 const resetRecordsBtns = document.querySelectorAll('.reset-records-btn');
+const pauseBtn = document.getElementById('pause-btn');
+const touchControls = document.getElementById('touch-controls');
+const isTouch = window.matchMedia('(pointer: coarse)').matches;
+
+for (const [cv, cx] of [[canvas, ctx], [nextCanvas, nextCtx]]) {
+  const w = cv.width, h = cv.height;
+  cv.width = w * DPR;
+  cv.height = h * DPR;
+  cx.setTransform(DPR, 0, 0, DPR, 0, 0);
+}
 
 let board, current, next, score, lines, level, paused, gameOver, lastTime, dropAccum, dropInterval, animId, theme, skin;
 let pendingPowerUps, freezeRemaining, lastPowerUp;
@@ -200,6 +221,25 @@ function tryRotate() {
       return;
     }
   }
+}
+
+function tryMove(dx) {
+  if (!collide(current.shape, current.x + dx, current.y)) current.x += dx;
+}
+
+const ACTIONS = {
+  left: () => tryMove(-1),
+  right: () => tryMove(1),
+  soft: () => softDrop(),
+  hard: () => hardDrop(),
+  rotate: () => tryRotate(),
+};
+
+// Single entry point for keyboard, touch buttons and board gestures.
+function doAction(name) {
+  if (paused || gameOver) return;
+  ACTIONS[name]();
+  updateHUD();
 }
 
 function merge() {
@@ -387,7 +427,7 @@ function drawRetroBlock(context, px, py, size, color) {
 function drawNeonBlock(context, px, py, size, color) {
   const inset = 3;
   context.shadowColor = color;
-  context.shadowBlur = size * 0.5;
+  context.shadowBlur = size * 0.5 * DPR; // shadowBlur ignores the canvas transform
   context.strokeStyle = color;
   context.lineWidth = 2;
   context.strokeRect(px + inset, py + inset, size - inset * 2, size - inset * 2);
@@ -529,7 +569,8 @@ function endGame() {
   recordForm.classList.toggle('hidden', !lastEntry);
   renderAllRecords();
   overlay.classList.remove('hidden');
-  if (lastEntry) {
+  // On touch, focusing the input would pop the on-screen keyboard over the records.
+  if (lastEntry && !isTouch) {
     recordNameInput.focus();
     recordNameInput.select();
   } else {
@@ -800,37 +841,100 @@ document.addEventListener('keydown', e => {
     return;
   }
   if (gameOver) return;
-  if (heldKeys.has(e.code)) {
-    if (GAME_KEYS.includes(e.code)) e.preventDefault();
-    return;
-  }
-  switch (e.code) {
-    case 'ArrowLeft':
-      if (!collide(current.shape, current.x - 1, current.y)) current.x--;
-      break;
-    case 'ArrowRight':
-      if (!collide(current.shape, current.x + 1, current.y)) current.x++;
-      break;
-    case 'ArrowDown':
-      softDrop();
-      break;
-    case 'ArrowUp':
-    case 'KeyX':
-      tryRotate();
-      break;
-    case 'Space':
-      e.preventDefault();
-      hardDrop();
-      break;
-  }
-  updateHUD();
+  const action = KEY_ACTIONS[e.code];
+  if (!action) return;
+  e.preventDefault();
+  if (heldKeys.has(e.code)) return;
+  doAction(action);
 });
 
 document.addEventListener('keyup', e => heldKeys.delete(e.code));
 window.addEventListener('blur', () => heldKeys.clear());
+// Leaving the tab/app (e.g. phone lock, app switch) pauses the game.
+document.addEventListener('visibilitychange', () => {
+  if (document.hidden && !paused && !gameOver) pause();
+});
+
+// ---- Touch buttons: press = action, hold = auto-repeat for moves/soft drop ----
+let repeatTimer = null;
+function stopRepeat() {
+  clearTimeout(repeatTimer);
+  repeatTimer = null;
+}
+for (const btn of touchControls.querySelectorAll('[data-action]')) {
+  const name = btn.dataset.action;
+  btn.addEventListener('pointerdown', e => {
+    e.preventDefault();
+    stopRepeat();
+    doAction(name);
+    if (!REPEATABLE_ACTIONS.has(name)) return;
+    const tick = delay => {
+      repeatTimer = setTimeout(() => {
+        if (paused || gameOver) return stopRepeat();
+        doAction(name);
+        tick(REPEAT_RATE);
+      }, delay);
+    };
+    tick(REPEAT_DELAY);
+  });
+  for (const type of ['pointerup', 'pointercancel', 'pointerleave']) btn.addEventListener(type, stopRepeat);
+  btn.addEventListener('contextmenu', e => e.preventDefault()); // long-press menu on mobile
+}
+
+// ---- Board gestures: tap = rotate, drag = move/soft drop per cell, fast flick down = hard drop ----
+let gesture = null;
+canvas.addEventListener('pointerdown', e => {
+  if (paused || gameOver) return;
+  canvas.setPointerCapture(e.pointerId);
+  gesture = {
+    id: e.pointerId,
+    x0: e.clientX, y0: e.clientY, t0: e.timeStamp,
+    cell: canvas.getBoundingClientRect().width / COLS,
+    piece: current, // a lock/spawn mid-drag ends the gesture
+    axis: null, stepsX: 0, stepsY: 0,
+  };
+});
+canvas.addEventListener('pointermove', e => {
+  const g = gesture;
+  if (!g || e.pointerId !== g.id) return;
+  if (paused || gameOver || current !== g.piece) { gesture = null; return; }
+  const dx = (e.clientX - g.x0) / g.cell;
+  const dy = (e.clientY - g.y0) / g.cell;
+  if (!g.axis) {
+    if (Math.max(Math.abs(dx), Math.abs(dy)) < AXIS_LOCK) return;
+    g.axis = Math.abs(dx) > Math.abs(dy) ? 'x' : 'y';
+  }
+  if (g.axis === 'x') {
+    const target = Math.round(dx);
+    while (g.stepsX !== target && current === g.piece) {
+      const dir = Math.sign(target - g.stepsX);
+      doAction(dir > 0 ? 'right' : 'left');
+      g.stepsX += dir;
+    }
+  } else {
+    // Only move down while there's room: a drag never locks the piece, only the flick does.
+    const target = Math.floor(dy);
+    while (g.stepsY < target && !collide(current.shape, current.x, current.y + 1)) {
+      doAction('soft');
+      g.stepsY++;
+    }
+  }
+});
+canvas.addEventListener('pointerup', e => {
+  const g = gesture;
+  if (!g || e.pointerId !== g.id) return;
+  gesture = null;
+  if (current !== g.piece) return;
+  const dt = e.timeStamp - g.t0;
+  if (!g.axis && dt < TAP_MAX_MS) doAction('rotate');
+  else if (g.axis === 'y' && (e.clientY - g.y0) / dt > SWIPE_DROP_SPEED) doAction('hard');
+});
+canvas.addEventListener('pointercancel', () => { gesture = null; });
+canvas.addEventListener('contextmenu', e => e.preventDefault());
 
 restartBtn.addEventListener('click', init);
 resumeBtn.addEventListener('click', resume);
+pauseBtn.addEventListener('click', togglePause);
 menuRestartBtn.addEventListener('click', init);
 showControlsBtn.addEventListener('click', () => showMenuView(menuControls));
 hideControlsBtn.addEventListener('click', () => showMenuView(menuMain));

@@ -104,7 +104,15 @@ body {
   align-items: flex-start;
 }
 
+/* Canvas bitmaps are scaled for devicePixelRatio in game.js; CSS sets the displayed size.
+   Board shrinks to fit the viewport height/width, keeping its 1:2 ratio. */
 #board {
+  --board-chrome: 100px;  /* vertical space used by title/controls around the board */
+  --panel-space: 200px;   /* horizontal space used by panel + gaps */
+  height: min(600px, calc(100vh - var(--board-chrome)), calc((100vw - var(--panel-space)) * 2));
+  height: min(600px, calc(100dvh - var(--board-chrome)), calc((100vw - var(--panel-space)) * 2));
+  aspect-ratio: 1 / 2;
+  touch-action: none;
   display: block;
   border: 1px solid var(--board-border);
   background: var(--board-bg);
@@ -148,6 +156,8 @@ body {
 }
 
 #next-canvas {
+  width: 120px;
+  height: 120px;
   display: block;
   border: 1px solid var(--board-border);
   background: var(--board-bg);
@@ -544,4 +554,113 @@ kbd {
 #score.in-top {
   color: var(--overlay-title-color);
   text-shadow: 0 0 10px var(--title-shadow);
+}
+
+/* ---- Mobile / touch ---- */
+.touch-only {
+  display: none;
+}
+
+.touch-controls {
+  margin-top: 12px;
+  grid-template-columns: repeat(5, 1fr);
+  gap: 8px;
+}
+
+.touch-btn {
+  height: 60px;
+  border-radius: 10px;
+  border: 1px solid var(--kbd-border);
+  background: var(--kbd-bg);
+  color: var(--text);
+  font-size: 24px;
+  touch-action: none;
+  -webkit-tap-highlight-color: transparent;
+}
+
+.touch-btn:active {
+  background: var(--restart-bg);
+  color: var(--restart-color);
+  border-color: var(--restart-bg);
+}
+
+@media (pointer: coarse) {
+  .touch-only { display: block; }
+  .touch-controls { display: grid; }
+  .controls-list li.touch-only { display: flex; }
+  .panel .controls { display: none; }
+  #board { --board-chrome: 170px; } /* title + touch controls + padding */
+}
+
+@media (max-width: 600px), (pointer: coarse) {
+  body {
+    align-items: flex-start;
+    min-height: 100dvh;
+    padding: max(12px, env(safe-area-inset-top)) 12px max(12px, env(safe-area-inset-bottom));
+    overscroll-behavior: none;
+    -webkit-tap-highlight-color: transparent;
+  }
+
+  .game-title {
+    font-size: 22px;
+    letter-spacing: 6px;
+    margin-bottom: 10px;
+    padding: 0 40px; /* keep clear of the theme toggle, stay centered */
+  }
+
+  .theme-toggle {
+    width: 32px;
+    height: 32px;
+    font-size: 14px;
+  }
+
+  .game-container {
+    gap: 10px;
+  }
+
+  #board {
+    --panel-space: 130px;
+  }
+
+  .panel {
+    width: 92px;
+    gap: 12px;
+    padding-top: 0;
+  }
+
+  .value {
+    font-size: 18px;
+  }
+
+  .value.powerup {
+    font-size: 12px;
+    white-space: normal;
+  }
+
+  #next-canvas {
+    width: 72px;
+    height: 72px;
+  }
+
+  .skin-select {
+    width: 100%;
+    font-size: 12px;
+    padding: 4px;
+  }
+
+  #pause-btn {
+    padding: 8px 0;
+    font-size: 18px;
+  }
+
+  .overlay-box {
+    max-width: calc(100vw - 24px);
+    max-height: 100%;
+    overflow-y: auto;
+    padding: 8px;
+  }
+
+  .records {
+    width: min(260px, calc(100vw - 48px));
+  }
 }
