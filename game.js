@@ -58,6 +58,10 @@ const POWERUP_INFO = {
 
 const LINE_SCORES = [0, 100, 300, 500, 800];
 
+const START_LEVEL_KEY = 'tetris-start-level';
+const MAX_START_LEVEL = 10;
+const GAME_KEYS = ['ArrowLeft', 'ArrowRight', 'ArrowDown', 'ArrowUp', 'KeyX', 'Space'];
+
 const THEME_STORAGE_KEY = 'tetris-theme';
 const THEME_CANVAS = {
   dark: { grid: '#22222e', highlight: 'rgba(255,255,255,0.12)' },
@@ -77,9 +81,22 @@ const overlayScore = document.getElementById('overlay-score');
 const restartBtn = document.getElementById('restart-btn');
 const themeToggle = document.getElementById('theme-toggle');
 const powerupEl = document.getElementById('powerup');
+const pauseMenu = document.getElementById('pause-menu');
+const menuMain = document.getElementById('menu-main');
+const menuControls = document.getElementById('menu-controls');
+const resumeBtn = document.getElementById('resume-btn');
+const menuRestartBtn = document.getElementById('menu-restart-btn');
+const showControlsBtn = document.getElementById('show-controls-btn');
+const hideControlsBtn = document.getElementById('hide-controls-btn');
+const startLevelEl = document.getElementById('start-level');
+const levelDownBtn = document.getElementById('level-down');
+const levelUpBtn = document.getElementById('level-up');
 
 let board, current, next, score, lines, level, paused, gameOver, lastTime, dropAccum, dropInterval, animId, theme;
 let pendingPowerUps, freezeRemaining, lastPowerUp;
+let startLevel = 1;
+// Keys pressed while the menu was open; ignored by the game until released.
+const heldKeys = new Set();
 
 function createBoard() {
   return Array.from({ length: ROWS }, () => new Array(COLS).fill(0));
@@ -157,10 +174,14 @@ function clearLines() {
     lines += cleared;
     pendingPowerUps += Math.floor(lines / POWERUP_EVERY) - Math.floor(prevLines / POWERUP_EVERY);
     score += (LINE_SCORES[cleared] || 0) * level;
-    level = Math.floor(lines / 10) + 1;
-    dropInterval = Math.max(100, 1000 - (level - 1) * 90);
+    level = startLevel + Math.floor(lines / 10);
+    dropInterval = intervalForLevel(level);
     updateHUD();
   }
+}
+
+function intervalForLevel(lvl) {
+  return Math.max(100, 1000 - (lvl - 1) * 90);
 }
 
 function ghostY() {
@@ -379,15 +400,73 @@ function applyTheme(t, { redraw = true } = {}) {
 
 function togglePause() {
   if (gameOver) return;
-  paused = !paused;
-  if (!paused) {
-    lastTime = performance.now();
-    loop(lastTime);
-  } else {
-    cancelAnimationFrame(animId);
-    overlayTitle.textContent = 'PAUSA';
-    overlayScore.textContent = '';
-    overlay.classList.remove('hidden');
+  if (paused) resume();
+  else pause();
+}
+
+function pause() {
+  paused = true;
+  cancelAnimationFrame(animId);
+  showMenuView(menuMain);
+  pauseMenu.classList.remove('hidden');
+  resumeBtn.focus();
+}
+
+function resume() {
+  hidePauseMenu();
+  paused = false;
+  lastTime = performance.now();
+  loop(lastTime);
+}
+
+function hidePauseMenu() {
+  pauseMenu.classList.add('hidden');
+  // Drop focus so Space/Enter can't re-trigger a menu button mid-game.
+  if (pauseMenu.contains(document.activeElement)) document.activeElement.blur();
+}
+
+function showMenuView(view) {
+  menuMain.classList.toggle('hidden', view !== menuMain);
+  menuControls.classList.toggle('hidden', view !== menuControls);
+  view.querySelector('.menu-btn').focus();
+}
+
+function setStartLevel(lvl, { save = true } = {}) {
+  startLevel = Math.min(MAX_START_LEVEL, Math.max(1, lvl));
+  startLevelEl.textContent = startLevel;
+  levelDownBtn.disabled = startLevel === 1;
+  levelUpBtn.disabled = startLevel === MAX_START_LEVEL;
+  // A disabled button drops focus; hand it to its sibling.
+  if (document.activeElement === levelDownBtn && levelDownBtn.disabled) levelUpBtn.focus();
+  if (document.activeElement === levelUpBtn && levelUpBtn.disabled) levelDownBtn.focus();
+  if (save) localStorage.setItem(START_LEVEL_KEY, startLevel);
+}
+
+function moveMenuFocus(dir) {
+  const view = menuControls.classList.contains('hidden') ? menuMain : menuControls;
+  const items = [...view.querySelectorAll('button:not(:disabled)')];
+  const i = items.indexOf(document.activeElement);
+  items[(i + dir + items.length) % items.length].focus();
+}
+
+function handleMenuKey(e) {
+  switch (e.code) {
+    case 'ArrowUp':
+      e.preventDefault();
+      moveMenuFocus(-1);
+      break;
+    case 'ArrowDown':
+      e.preventDefault();
+      moveMenuFocus(1);
+      break;
+    case 'ArrowLeft':
+    case 'ArrowRight':
+      e.preventDefault();
+      if (!menuMain.classList.contains('hidden')) setStartLevel(startLevel + (e.code === 'ArrowLeft' ? -1 : 1));
+      break;
+    case 'Space':
+      if (!(document.activeElement instanceof HTMLButtonElement)) e.preventDefault();
+      break;
   }
 }
 
@@ -417,10 +496,10 @@ function init() {
   board = createBoard();
   score = 0;
   lines = 0;
-  level = 1;
+  level = startLevel;
   paused = false;
   gameOver = false;
-  dropInterval = 1000;
+  dropInterval = intervalForLevel(level);
   dropAccum = 0;
   pendingPowerUps = 0;
   freezeRemaining = 0;
@@ -430,13 +509,33 @@ function init() {
   spawn();
   updateHUD();
   overlay.classList.add('hidden');
+  hidePauseMenu();
   cancelAnimationFrame(animId);
   animId = requestAnimationFrame(loop);
 }
 
 document.addEventListener('keydown', e => {
-  if (e.code === 'KeyP') { togglePause(); return; }
-  if (paused || gameOver) return;
+  if (e.code === 'KeyP' || e.code === 'Escape') {
+    e.preventDefault();
+    if (e.repeat) return;
+    // Esc inside "Ver controles" goes back to the main menu instead of resuming.
+    if (paused && e.code === 'Escape' && !menuControls.classList.contains('hidden')) {
+      showMenuView(menuMain);
+    } else {
+      togglePause();
+    }
+    return;
+  }
+  if (paused) {
+    heldKeys.add(e.code);
+    handleMenuKey(e);
+    return;
+  }
+  if (gameOver) return;
+  if (heldKeys.has(e.code)) {
+    if (GAME_KEYS.includes(e.code)) e.preventDefault();
+    return;
+  }
   switch (e.code) {
     case 'ArrowLeft':
       if (!collide(current.shape, current.x - 1, current.y)) current.x--;
@@ -459,10 +558,20 @@ document.addEventListener('keydown', e => {
   updateHUD();
 });
 
+document.addEventListener('keyup', e => heldKeys.delete(e.code));
+window.addEventListener('blur', () => heldKeys.clear());
+
 restartBtn.addEventListener('click', init);
+resumeBtn.addEventListener('click', resume);
+menuRestartBtn.addEventListener('click', init);
+showControlsBtn.addEventListener('click', () => showMenuView(menuControls));
+hideControlsBtn.addEventListener('click', () => showMenuView(menuMain));
+levelDownBtn.addEventListener('click', () => setStartLevel(startLevel - 1));
+levelUpBtn.addEventListener('click', () => setStartLevel(startLevel + 1));
 themeToggle.addEventListener('click', () => {
   applyTheme(theme === 'light' ? 'dark' : 'light');
 });
 
 applyTheme(localStorage.getItem(THEME_STORAGE_KEY) === 'light' ? 'light' : 'dark', { redraw: false });
+setStartLevel(parseInt(localStorage.getItem(START_LEVEL_KEY), 10) || 1, { save: false });
 init();
