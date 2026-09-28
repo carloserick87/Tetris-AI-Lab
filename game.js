@@ -13,6 +13,7 @@ const COLORS = [
   '#e57373', // Z - red
   '#64b5f6', // J - pale blue
   '#ffb74d', // L - orange
+  '#90a4ae', // Nut - metallic gray
 ];
 
 const PIECES = [
@@ -24,7 +25,11 @@ const PIECES = [
   [[5,5,0],[0,5,5],[0,0,0]],                  // Z
   [[6,0,0],[6,6,6],[0,0,0]],                  // J
   [[0,0,7],[7,7,7],[0,0,0]],                  // L
+  [[8,8,8],[8,0,8],[8,8,8]],                  // Nut (challenge)
 ];
+
+const NUT_TYPE = 8;
+const NUT_CHANCE = 0.05;
 
 const LINE_SCORES = [0, 100, 300, 500, 800];
 
@@ -54,7 +59,7 @@ function createBoard() {
 }
 
 function randomPiece() {
-  const type = Math.floor(Math.random() * 7) + 1;
+  const type = Math.random() < NUT_CHANCE ? NUT_TYPE : Math.floor(Math.random() * 7) + 1;
   const shape = PIECES[type].map(row => [...row]);
   return { type, shape, x: Math.floor(COLS / 2) - Math.floor(shape[0].length / 2), y: 0 };
 }
@@ -175,6 +180,12 @@ function drawBlock(context, x, y, colorIndex, size, alpha) {
   context.globalAlpha = 1;
 }
 
+function drawPiece(context, shape, ox, oy, size, alpha) {
+  for (let r = 0; r < shape.length; r++)
+    for (let c = 0; c < shape[r].length; c++)
+      drawBlock(context, ox + c, oy + r, shape[r][c], size, alpha);
+}
+
 function drawGrid() {
   ctx.strokeStyle = THEME_CANVAS[theme].grid;
   ctx.lineWidth = 0.5;
@@ -202,16 +213,10 @@ function draw() {
       drawBlock(ctx, c, r, board[r][c], BLOCK);
 
   // ghost
-  const gy = ghostY();
-  for (let r = 0; r < current.shape.length; r++)
-    for (let c = 0; c < current.shape[r].length; c++)
-      if (current.shape[r][c])
-        drawBlock(ctx, current.x + c, gy + r, current.shape[r][c], BLOCK, 0.2);
+  drawPiece(ctx, current.shape, current.x, ghostY(), BLOCK, 0.2);
 
   // current piece
-  for (let r = 0; r < current.shape.length; r++)
-    for (let c = 0; c < current.shape[r].length; c++)
-      drawBlock(ctx, current.x + c, current.y + r, current.shape[r][c], BLOCK);
+  drawPiece(ctx, current.shape, current.x, current.y, BLOCK);
 }
 
 function drawNext() {
@@ -220,9 +225,7 @@ function drawNext() {
   const shape = next.shape;
   const offX = Math.floor((4 - shape[0].length) / 2);
   const offY = Math.floor((4 - shape.length) / 2);
-  for (let r = 0; r < shape.length; r++)
-    for (let c = 0; c < shape[r].length; c++)
-      drawBlock(nextCtx, offX + c, offY + r, shape[r][c], NB);
+  drawPiece(nextCtx, shape, offX, offY, NB);
 }
 
 function endGame() {
