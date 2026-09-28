@@ -14,6 +14,11 @@ const COLORS = [
   '#64b5f6', // J - pale blue
   '#ffb74d', // L - orange
   '#90a4ae', // Nut - metallic gray
+  '#ef5350', // Bomba
+  '#fff176', // Rayo
+  '#f06292', // Tinte
+  '#7e57c2', // Gravedad
+  '#b3e5fc', // Congelar
 ];
 
 const PIECES = [
@@ -26,10 +31,30 @@ const PIECES = [
   [[6,0,0],[6,6,6],[0,0,0]],                  // J
   [[0,0,7],[7,7,7],[0,0,0]],                  // L
   [[8,8,8],[8,0,8],[8,8,8]],                  // Nut (challenge)
+  [[9]],                                       // Bomba
+  [[10]],                                      // Rayo
+  [[11]],                                      // Tinte
+  [[12]],                                      // Gravedad
+  [[13]],                                      // Congelar
 ];
 
 const NUT_TYPE = 8;
 const NUT_CHANCE = 0.05;
+
+// Power-ups: 1×1 pieces whose effect fires on lock; never stored in `board`.
+const BOMB = 9, RAY = 10, TINT = 11, GRAVITY = 12, FREEZE = 13;
+const POWERUP_MIN = BOMB;
+const POWERUP_COUNT = 5;
+const POWERUP_EVERY = 5; // lines
+const POWERUP_BLOCK_SCORE = 10;
+const FREEZE_MS = 5000;
+const POWERUP_INFO = {
+  [BOMB]:    { icon: '💣', name: 'Bomba' },
+  [RAY]:     { icon: '⚡', name: 'Rayo' },
+  [TINT]:    { icon: '🎨', name: 'Tinte' },
+  [GRAVITY]: { icon: '⬇', name: 'Gravedad' },
+  [FREEZE]:  { icon: '❄', name: 'Congelar' },
+};
 
 const LINE_SCORES = [0, 100, 300, 500, 800];
 
@@ -51,15 +76,27 @@ const overlayTitle = document.getElementById('overlay-title');
 const overlayScore = document.getElementById('overlay-score');
 const restartBtn = document.getElementById('restart-btn');
 const themeToggle = document.getElementById('theme-toggle');
+const powerupEl = document.getElementById('powerup');
 
 let board, current, next, score, lines, level, paused, gameOver, lastTime, dropAccum, dropInterval, animId, theme;
+let pendingPowerUps, freezeRemaining, lastPowerUp;
 
 function createBoard() {
   return Array.from({ length: ROWS }, () => new Array(COLS).fill(0));
 }
 
 function randomPiece() {
-  const type = Math.random() < NUT_CHANCE ? NUT_TYPE : Math.floor(Math.random() * 7) + 1;
+  let type;
+  if (pendingPowerUps > 0) {
+    pendingPowerUps--;
+    type = POWERUP_MIN + Math.floor(Math.random() * POWERUP_COUNT);
+  } else {
+    type = Math.random() < NUT_CHANCE ? NUT_TYPE : Math.floor(Math.random() * 7) + 1;
+  }
+  return makePiece(type);
+}
+
+function makePiece(type) {
   const shape = PIECES[type].map(row => [...row]);
   return { type, shape, x: Math.floor(COLS / 2) - Math.floor(shape[0].length / 2), y: 0 };
 }
@@ -116,7 +153,9 @@ function clearLines() {
     }
   }
   if (cleared) {
+    const prevLines = lines;
     lines += cleared;
+    pendingPowerUps += Math.floor(lines / POWERUP_EVERY) - Math.floor(prevLines / POWERUP_EVERY);
     score += (LINE_SCORES[cleared] || 0) * level;
     level = Math.floor(lines / 10) + 1;
     dropInterval = Math.max(100, 1000 - (level - 1) * 90);
@@ -148,9 +187,74 @@ function softDrop() {
 }
 
 function lockPiece() {
-  merge();
+  if (current.type >= POWERUP_MIN) {
+    applyPowerUp(current.type, current.x, current.y);
+  } else {
+    merge();
+  }
   clearLines();
   spawn();
+}
+
+// Empties cells matching `predicate(r, c)`; returns how many were filled.
+function clearCells(predicate) {
+  let removed = 0;
+  for (let r = 0; r < ROWS; r++)
+    for (let c = 0; c < COLS; c++)
+      if (board[r][c] && predicate(r, c)) {
+        board[r][c] = 0;
+        removed++;
+      }
+  return removed;
+}
+
+function mostFrequentColor() {
+  const counts = {};
+  let best = 0;
+  for (const row of board)
+    for (const v of row)
+      if (v && (counts[v] = (counts[v] || 0) + 1) > (counts[best] || 0)) best = v;
+  return best;
+}
+
+function compactBoard() {
+  for (let c = 0; c < COLS; c++) {
+    let write = ROWS - 1;
+    for (let r = ROWS - 1; r >= 0; r--) {
+      if (board[r][c]) {
+        const v = board[r][c];
+        board[r][c] = 0;
+        board[write--][c] = v;
+      }
+    }
+  }
+}
+
+function applyPowerUp(type, x, y) {
+  let removed = 0;
+  switch (type) {
+    case BOMB:
+      removed = clearCells((r, c) => Math.abs(r - y) <= 1 && Math.abs(c - x) <= 1);
+      break;
+    case RAY:
+      removed = clearCells((r, c) => r === y || c === x);
+      break;
+    case TINT: {
+      const below = y + 1 < ROWS ? board[y + 1][x] : 0;
+      const color = below || mostFrequentColor();
+      if (color) removed = clearCells((r, c) => board[r][c] === color);
+      break;
+    }
+    case GRAVITY:
+      compactBoard();
+      break;
+    case FREEZE:
+      freezeRemaining = FREEZE_MS;
+      break;
+  }
+  score += removed * POWERUP_BLOCK_SCORE * level;
+  lastPowerUp = type;
+  updateHUD();
 }
 
 function spawn() {
@@ -166,6 +270,18 @@ function updateHUD() {
   scoreEl.textContent = score.toLocaleString();
   linesEl.textContent = lines;
   levelEl.textContent = level;
+  updatePowerUpHUD();
+}
+
+function updatePowerUpHUD() {
+  let text = '—';
+  if (freezeRemaining > 0) {
+    text = `❄ ${(freezeRemaining / 1000).toFixed(1)}s`;
+  } else if (lastPowerUp) {
+    const info = POWERUP_INFO[lastPowerUp];
+    text = `${info.icon} ${info.name}`;
+  }
+  if (powerupEl.textContent !== text) powerupEl.textContent = text;
 }
 
 function drawBlock(context, x, y, colorIndex, size, alpha) {
@@ -177,6 +293,13 @@ function drawBlock(context, x, y, colorIndex, size, alpha) {
   // highlight
   context.fillStyle = THEME_CANVAS[theme].highlight;
   context.fillRect(x * size + 1, y * size + 1, size - 2, 4);
+  if (colorIndex >= POWERUP_MIN) {
+    context.font = `${Math.floor(size * 0.6)}px sans-serif`;
+    context.textAlign = 'center';
+    context.textBaseline = 'middle';
+    context.fillStyle = '#000';
+    context.fillText(POWERUP_INFO[colorIndex].icon, x * size + size / 2, y * size + size / 2 + 1);
+  }
   context.globalAlpha = 1;
 }
 
@@ -211,6 +334,11 @@ function draw() {
   for (let r = 0; r < ROWS; r++)
     for (let c = 0; c < COLS; c++)
       drawBlock(ctx, c, r, board[r][c], BLOCK);
+
+  if (freezeRemaining > 0) {
+    ctx.fillStyle = 'rgba(129, 212, 250, 0.15)';
+    ctx.fillRect(0, 0, canvas.width, canvas.height);
+  }
 
   // ghost
   drawPiece(ctx, current.shape, current.x, ghostY(), BLOCK, 0.2);
@@ -266,7 +394,12 @@ function togglePause() {
 function loop(ts) {
   const dt = ts - lastTime;
   lastTime = ts;
-  dropAccum += dt;
+  if (freezeRemaining > 0) {
+    freezeRemaining = Math.max(0, freezeRemaining - dt);
+    updatePowerUpHUD();
+  } else {
+    dropAccum += dt;
+  }
   if (dropAccum >= dropInterval) {
     dropAccum = 0;
     if (!collide(current.shape, current.x, current.y + 1)) {
@@ -289,6 +422,9 @@ function init() {
   gameOver = false;
   dropInterval = 1000;
   dropAccum = 0;
+  pendingPowerUps = 0;
+  freezeRemaining = 0;
+  lastPowerUp = 0;
   lastTime = performance.now();
   next = randomPiece();
   spawn();

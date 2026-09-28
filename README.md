@@ -42,6 +42,21 @@ Es una versión jugable del Tetris clásico con todas las mecánicas que esperar
 - **Sistema de puntuación** clásico de Tetris (100 / 300 / 500 / 800 multiplicado por nivel).
 - **Niveles** que aumentan cada 10 líneas y aceleran la caída.
 - **Pausa** y **Game Over** con opción de reinicio.
+- **Power-ups** aleatorios cada 5 líneas (ver abajo).
+
+### Power-ups
+
+Cada 5 líneas eliminadas, la siguiente pieza es un bloque especial 1×1 elegido al azar. Su efecto se activa al fijarse:
+
+| Power-up    | Efecto                                                                                          |
+| ----------- | ----------------------------------------------------------------------------------------------- |
+| 💣 Bomba    | Destruye un área 3×3 centrada en el bloque                                                      |
+| ⚡ Rayo     | Limpia la fila y la columna completas donde cae                                                 |
+| 🎨 Tinte    | Elimina todos los bloques del color que tiene debajo (o del color más frecuente si no hay nada) |
+| ⬇ Gravedad | Compacta los huecos del tablero haciendo caer todos los bloques                                  |
+| ❄ Congelar | Detiene la caída automática durante 5 s (los controles siguen activos)                           |
+
+Cada bloque destruido por un power-up suma `10 × nivel` puntos. El panel **POWER-UP** muestra el último activado y la cuenta atrás del congelamiento.
 
 ---
 
