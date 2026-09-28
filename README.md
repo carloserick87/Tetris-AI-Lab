@@ -44,6 +44,7 @@ Es una versión jugable del Tetris clásico con todas las mecánicas que esperar
 - **Menú de pausa** (`P` / `Esc`): reanudar, reiniciar, ver controles y elegir el **nivel inicial** (1–10) de la próxima partida. Mientras está abierto, las teclas del juego se bloquean y las pulsadas en el menú se ignoran hasta soltarlas.
 - **Game Over** con opción de reinicio.
 - **Skins** seleccionables desde el panel (se guardan en localStorage y se aplican al instante): **Retro** (bloques planos), **Neon** (fondo negro con _glow_), **Pastel** (colores suaves, bordes redondeados) y **Pixel art** (textura de sub-píxeles).
+- **Tabla de records** local (localStorage): top 5 con nombre del jugador, mejor combo y máximo de líneas. Se muestra en la pantalla de inicio y en el Game Over, resalta la partida actual si entra en el top (el marcador SCORE cambia de color en cuanto la supera) y tiene botón para borrar los records.
 - **Power-ups** aleatorios cada 5 líneas (ver abajo).
 
 ### Power-ups
@@ -115,7 +116,7 @@ Define la estructura visual:
 
 - Un `<canvas id="board">` de **300 × 600** píxeles donde se renderiza el tablero.
 - Un panel lateral con `SCORE`, `LINES`, `LEVEL`, vista de la siguiente pieza y la lista de controles.
-- Un overlay de **GAME OVER** y un menú de **PAUSA** (`#pause-menu`).
+- Una pantalla de inicio (`#start-screen`) con los records, un overlay de **GAME OVER** (records + campo de nombre) y un menú de **PAUSA** (`#pause-menu`).
 
 ### 2. `style.css`
 
