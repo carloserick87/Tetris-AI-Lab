@@ -42,6 +42,7 @@ Es una versión jugable del Tetris clásico con todas las mecánicas que esperar
 - **Sistema de puntuación** clásico de Tetris (100 / 300 / 500 / 800 multiplicado por nivel).
 - **Niveles** que aumentan cada 10 líneas y aceleran la caída.
 - **Pausa** y **Game Over** con opción de reinicio.
+- **Tabla de records** local (localStorage): top 5 con nombre del jugador, mejor combo y máximo de líneas. Se muestra en la pantalla de inicio y en el Game Over, resalta la partida actual si entra en el top (el marcador SCORE cambia de color en cuanto la supera) y tiene botón para borrar los records.
 - **Power-ups** aleatorios cada 5 líneas (ver abajo).
 
 ### Power-ups
@@ -113,7 +114,7 @@ Define la estructura visual:
 
 - Un `<canvas id="board">` de **300 × 600** píxeles donde se renderiza el tablero.
 - Un panel lateral con `SCORE`, `LINES`, `LEVEL`, vista de la siguiente pieza y la lista de controles.
-- Un overlay para los estados **PAUSA** y **GAME OVER**.
+- Una pantalla de inicio (`#start-screen`) con los records y un overlay para **PAUSA** y **GAME OVER** (records + campo de nombre).
 
 ### 2. `style.css`
 
