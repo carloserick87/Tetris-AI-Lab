@@ -19,7 +19,7 @@ Three files: `index.html` (DOM: `#board` canvas 300×600, side panel with `#scor
 
 `game.js` key points:
 - **State** is module-level `let` globals (`board, current, next, score, lines, level, paused, gameOver, lastTime, dropAccum, dropInterval, animId`), reset in `init()`. `init()` is also the restart handler.
-- **Board**: `ROWS × COLS` matrix; `0` = empty, `1–7` = piece type, which doubles as index into `COLORS` and as the cell value inside `PIECES` shapes. Adding a piece type means updating `PIECES`, `COLORS`, and the `* 7` in `randomPiece()`.
+- **Board**: `ROWS × COLS` matrix; `0` = empty, `1–7` = piece type, which doubles as index into `COLORS` and as the cell value inside `PIECES` shapes. Adding a piece type means updating `PIECES`, `COLORS` (and every `SKINS[*].colors`), and the `* 7` in `randomPiece()`.
 - **Piece**: `{ type, shape, x, y }`; shape is a square matrix copied from `PIECES`. Rotation = `rotateCW` (transpose + reverse); `tryRotate` applies simple kicks `[0,-1,1,-2,2]` (not SRS).
 - **Collision**: `collide(shape, ox, oy)` is the single validity check used by movement, rotation, gravity, ghost (`ghostY`), and spawn (spawn collision → `endGame()`).
 - **Power-ups**: types 9–13 (`BOMB..FREEZE`), 1×1 pieces. Every `POWERUP_EVERY` lines `clearLines()` bumps `pendingPowerUps`; `randomPiece()` consumes it. On lock they run `applyPowerUp()` instead of `merge()`, so `board` never holds values ≥9. Freeze sets `freezeRemaining`, which `loop()` drains instead of accumulating `dropAccum`.
@@ -28,5 +28,6 @@ Three files: `index.html` (DOM: `#board` canvas 300×600, side panel with `#scor
 - **Loop**: `requestAnimationFrame(loop)` accumulates `dt` into `dropAccum`; gravity step when ≥ `dropInterval`. Pause/game over cancel via `animId`; resume restarts `loop` manually.
 - **Scoring**: `LINE_SCORES[cleared] * level`; soft drop +1/row, hard drop +2/row. Level = `startLevel + floor(lines/10)`; `dropInterval = intervalForLevel(level) = max(100, 1000 − (level−1)×90)`. `startLevel` (1–`MAX_START_LEVEL`) persists in localStorage and applies on `init()`.
 - **Rendering**: full redraw each frame in `draw()` (grid → board → ghost at alpha 0.2 → current). `drawBlock` is shared with the next-piece preview (`drawNext`, 4×4 grid of 30px).
+- **Skins**: `SKINS[name] = { colors, iconColor, grid?, block }`; `skin` global set by `applySkin()` (persisted as `tetris-skin`, mirrored to `data-skin` on `<html>` for CSS board framing). `drawBlock` wraps `skin.block(ctx, px, py, size, color)` in save/restore + alpha and draws power-up icons. Each skin palette must keep the same indices as `COLORS`; `shade()` derives lighter/darker tones. Skins are orthogonal to the light/dark `theme`.
 
 Changing `COLS`/`ROWS`/`BLOCK` requires matching the `#board` canvas `width`/`height` in `index.html`.

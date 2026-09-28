@@ -344,3 +344,52 @@ kbd {
   display: flex;
   gap: 4px;
 }
+
+/* ---- Skin selector ---- */
+.skin-select {
+  background: var(--kbd-bg);
+  color: var(--text);
+  border: 1px solid var(--kbd-border);
+  border-radius: 4px;
+  padding: 5px 8px;
+  font-size: 13px;
+  font-family: inherit;
+  cursor: pointer;
+}
+
+/* ---- Skins: board framing (blocks are drawn in game.js) ---- */
+[data-skin="neon"] #board,
+[data-skin="neon"] #next-canvas {
+  background: #000;
+  border-color: #00f0ff;
+  box-shadow: 0 0 24px rgba(0, 240, 255, 0.45), inset 0 0 12px rgba(0, 240, 255, 0.15);
+}
+
+[data-skin="neon"] .game-title {
+  color: #00f0ff;
+  text-shadow: 0 0 8px #00f0ff, 0 0 24px #d000ff;
+}
+
+[data-skin="pastel"] #board,
+[data-skin="pastel"] #next-canvas {
+  border-radius: 14px;
+  border-color: #d5b8ff;
+}
+
+[data-skin="pastel"] .game-title {
+  color: #c3a4f5;
+  text-shadow: 0 0 16px rgba(213, 184, 255, 0.6);
+}
+
+[data-skin="pixel"] #board,
+[data-skin="pixel"] #next-canvas {
+  border-radius: 0;
+  border-width: 3px;
+  image-rendering: pixelated;
+  box-shadow: 6px 6px 0 var(--board-shadow);
+}
+
+[data-skin="pixel"] .game-title {
+  font-family: 'Courier New', Courier, monospace;
+  text-shadow: 3px 3px 0 var(--title-shadow);
+}
